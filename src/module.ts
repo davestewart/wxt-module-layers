@@ -1,6 +1,7 @@
 import { basename, join, relative, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { globSync } from 'glob'
+import { makeLogger, plural } from '@davestewart/wxt-utils'
 import pc from 'picocolors'
 import 'wxt'
 import type { EntrypointInfo, WxtResolvedUnimportOptions } from 'wxt'
@@ -12,39 +13,18 @@ import {
   resolveLayers,
   scanLayerEntrypoints,
 } from './filesystem'
-import { createLogger, type LogLevel } from './logger'
-import { LayerWxtOptions } from './layers'
-import { plural } from './utils'
+import { LayerConfig, LayersModuleOptions } from './types'
 
-export interface LayersModuleOptions extends LayerWxtOptions {
-  /**
-   * List of layer sources (default: '/layers/*')
-   *
-   * Supported formats:
-   *
-   * - single layers, i.e. ['layers/foo', 'layers/bar', ...]
-   * - wildcards, i.e. ['packages/*', ...]
-   *
-   * Paths must be relative to the project root or absolute path
-   */
-  sources?: string[]
+// ---------------------------------------------------------------------------------------------------------------------
+// types
+// ---------------------------------------------------------------------------------------------------------------------
 
-  /**
-   * Log level for the module logger (default: 'warn')
-   */
-  logLevel?: LogLevel
-}
-
+/**
+ * Augment WXT
+ */
 declare module 'wxt' {
   interface InlineConfig {
     layers?: LayersModuleOptions;
-  }
-
-  interface Wxt {
-    /**
-     * Resolved layer directory paths
-     */
-    _layers?: string[]
   }
 
   interface WxtHooks {
@@ -55,6 +35,20 @@ declare module 'wxt' {
   }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// functions
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Define a layer configuration
+ */
+export function defineLayer (config: LayerConfig): LayerConfig {
+  return config
+}
+
+/**
+ * Layers module
+ */
 export const module = defineWxtModule({
   name: 'wxt-module-layers',
 
@@ -66,7 +60,7 @@ export const module = defineWxtModule({
     // -----------------------------------------------------------------------------------------------------------------
 
     // logger
-    const Logger = createLogger(wxt, 'layers', options.logLevel ?? 'info')
+    const Logger = makeLogger(wxt.logger, 'layers', options.logLevel ?? 'info')
 
     // helpers
     function interpolateLayerName (template: string, layerName: string): string {
@@ -118,24 +112,26 @@ export const module = defineWxtModule({
       : `${resolve(rootDir, 'layers/*')}`
 
     // logged sources
-    debugger
-    Logger.debug(`  - sources: ${Array.isArray(layerSources) ? layerSources.join(', ') : layerSources}`)
+    if (Array.isArray(options.sources) && Array.isArray(layerSources) && layerSources.length > 0) {
+      layerSources.forEach(source => {
+        Logger.debug(`  - ${source}`)
+      })
+    }
 
     // resolve all layer source paths
     const layerPaths = resolveLayers(layerSources)
     if (layerPaths.length === 0) {
-      Logger.log(pc.redBright('No layers found!'))
+      Logger.warn(pc.redBright('No layers found!'))
       return
     }
 
     // resolved
     Logger.info(`Scanning ${plural('layer folder', layerPaths)}...`)
     layerPaths.forEach(path => {
-      // Logger.debug(`  - ${relative(rootDir, path)}`)
+      Logger.debug(`  - ${relative(rootDir, path)}`)
     })
 
     // register layer paths for future modules
-    wxt._layers = layerPaths
     wxt.hook('ready', () => {
       void wxt.hooks.callHook('layers:resolved', layerPaths)
     })
@@ -161,7 +157,7 @@ export const module = defineWxtModule({
       const layerName = basename(layerPath)
       const layerRelPath = relative(rootDir, layerPath)
 
-      Logger.debug(`Processing layer: ${layerRelPath}`)
+      Logger.debug(`Processing layer: ${pc.blue(layerRelPath)}`)
 
       const layerConfig = await loadLayerConfig(layerPath)
 
@@ -183,9 +179,9 @@ export const module = defineWxtModule({
       // process entrypoints
       for (const entrypoint of layerEntrypoints) {
         // debug
-        const path = relative(`${layerPath}/entrypoints`, entrypoint.inputPath)
+        const path = relative(layerPath, entrypoint.inputPath)
         const suffix = entrypoint.type === 'background'
-          ? pc.yellowBright('(layer-background)')
+          ? pc.dim('(layer-background)')
           : pc.dim(`(${entrypoint.type})`)
         Logger.debug(`  - entrypoint: ${path} ${suffix}`)
 
@@ -268,25 +264,13 @@ export const module = defineWxtModule({
       }
 
       // ---------------------------------------------------------------------------------------------------------------
-      // merge manifest properties (on hook)
+      // update manifest properties (on hook)
       // ---------------------------------------------------------------------------------------------------------------
 
       if (layerConfig?.manifest) {
-        wxt.hook('build:manifestGenerated', (_, manifest) => {
+        wxt.hook('build:manifestGenerated', (wxt, manifest) => {
           if (layerConfig.manifest) {
-            // deep merge manifest properties
-            for (const [key, value] of Object.entries(layerConfig.manifest)) {
-              const manifestAny = manifest as any
-              if (Array.isArray(value) && Array.isArray(manifestAny[key])) {
-                manifestAny[key] = [...manifestAny[key], ...value]
-              }
-              else if (typeof value === 'object' && typeof manifestAny[key] === 'object') {
-                manifestAny[key] = { ...manifestAny[key], ...value }
-              }
-              else {
-                manifestAny[key] = value
-              }
-            }
+            layerConfig.manifest(wxt, manifest)
           }
         })
       }
@@ -305,17 +289,17 @@ export const module = defineWxtModule({
      * @param entrypoints   Unordered entrypoint infos for the layer backgrounds
      * @param debug         An optional debug flag to enable timing logs
      */
-    function createLayerBackgroundsPlugin(entrypoints: LayerEntrypointInfo[], debug = process.env.NODE_ENV === 'development') {
+    function createLayerBackgroundsPlugin (entrypoints: LayerEntrypointInfo[], debug = process.env.NODE_ENV === 'development') {
       return {
         name: 'wxt-module-layers-backgrounds',
 
-        resolveId(id: string) {
+        resolveId (id: string) {
           if (id === MODULE_NAME) {
             return MODULE_ID
           }
         },
 
-        load(id: string) {
+        load (id: string) {
           if (id === MODULE_ID) {
             // variables
             let imports = ''
@@ -452,13 +436,13 @@ export const module = defineWxtModule({
       // ---------------------------------------------------------------------------------------------------------------
 
       if (allAutoImportPaths.length > 0) {
-        if (wxt.config.imports === false) {
+        if (wxt.config.imports.disabled) {
           Logger.warn('Auto-imports are disabled, layer auto-imports will not work')
           return
         }
 
         // ensure imports config exists
-        if (typeof wxt.config.imports !== 'object' || wxt.config.imports === null) {
+        if (!wxt.config.imports) {
           wxt.config.imports = {} as WxtResolvedUnimportOptions
         }
 

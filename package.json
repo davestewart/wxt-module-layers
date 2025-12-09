@@ -4,8 +4,18 @@
   "description": "Nuxt-like layers functionality for WXT browser extensions",
   "author": "Dave Stewart",
   "license": "MIT",
-  "keywords": [ "wxt", "wxt-module", "web-extension", "browser-extension", "chrome-extension", "firefox-addon" ],
-  "repository": { "type": "git", "url": "https://github.com/davestewart/wxt-module-layers" },
+  "keywords": [
+    "wxt",
+    "wxt-module",
+    "web-extension",
+    "browser-extension",
+    "chrome-extension",
+    "firefox-addon"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davestewart/wxt-module-layers"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,15 +35,15 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@davestewart/wxt-utils": "^0.6.0",
     "c12": "^3.3.2",
-    "glob": "^11.0.0",
+    "glob": "^11.1.0",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
-    "wxt-utils": "link:///Volumes/Data/Work/OpenSource/JavaScript/WXT/wxt-utils",
-    "@types/node": "^20.10.5",
+    "@types/node": "^20.19.26",
     "tsup": "^8.5.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "wxt": ">=0.17.0"

@@ -2,8 +2,8 @@ import { existsSync, readdirSync, statSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
 import { type EntrypointInfo } from 'wxt'
 import { loadConfig } from 'c12'
-import { LayerConfig } from './layers'
-import { toArray } from './utils'
+import { toArray } from '@davestewart/wxt-utils'
+import type { LayerConfig, LayerEntrypoints } from './types'
 
 /**
  * Resolve all layers from given sources (rel, abs and child/* paths)
@@ -65,49 +65,81 @@ export function scanLayerEntrypoints (layerPath: string): EntrypointInfo[] {
     return []
   }
 
-  const entrypoints: string[] = []
+  const entrypoints: EntrypointInfo[] = []
 
   // scan for all potential entrypoint files/directories
   const entries = readdirSync(entrypointsDir)
   for (const entry of entries) {
-    const fullPath = join(entrypointsDir, entry)
+    // variables
+    let inputPath: string = ''
+    let name: string = ''
+
+    // process
+    const fullPath: string = join(entrypointsDir, entry)
     const stat = statSync(fullPath)
+
+    // entrypoint is a directory
     if (stat.isDirectory()) {
       const entries = readdirSync(fullPath)
       const rx = /^(index)\.(ts|tsx|js|jsx|html|css|scss|sass|less)$/
       const indexFile = entries.find(entry => rx.test(entry))
       if (indexFile) {
-        entrypoints.push(join(fullPath, indexFile))
+        inputPath = join(fullPath, indexFile)
+        name = entry
       }
     }
+
+    // entrypoint is a file
     else {
-      entrypoints.push(fullPath)
+      inputPath = join(entrypointsDir, entry)
+      name = basename(entry, extname(entry))
+    }
+
+    // add entrypoint
+    if (inputPath && name) {
+      entrypoints.push({
+        name,
+        inputPath,
+        type: determineEntrypointType(name, extname(inputPath)),
+      })
     }
   }
 
   // return final mapped entrypoint infos
-  return resolveEntrypoints(entrypoints)
+  return entrypoints
 }
 
 /**
- * Resolve entrypoints from given paths
+ * Resolve entrypoints from layer entrypoints config
  *
+ * @param config
  * @param layerPath
- * @param paths
  */
-export function resolveEntrypoints (paths: string[], layerPath?: string): EntrypointInfo[] {
-  return paths
-    .map(path => layerPath ? resolve(layerPath, path) : path)
-    .filter(path => existsSync(path))
-    .map(path => {
-      const name = basename(path, extname(path))
-      const type = determineEntrypointType(name, extname(path))
-      return {
-        name,
-        inputPath: path,
-        type,
+export function resolveEntrypoints (config: LayerEntrypoints, layerPath: string): EntrypointInfo[] {
+  // resolved entrypoints
+  const entrypoints: EntrypointInfo[] = []
+
+  // loop over config object
+  for (const [name, path] of Object.entries(config)) {
+    if (path) {
+      const fullPath = resolve(layerPath, path)
+      if (existsSync(fullPath)) {
+        // naming is the opposite way to WXT file defaults; we store the name as <type>.<name>
+        const layerName = name.includes('.')
+          ? name.split('.').shift() as string
+          : name
+        const type = determineEntrypointType(layerName, extname(fullPath))
+        entrypoints.push({
+          name,
+          inputPath: fullPath,
+          type,
+        })
       }
-    })
+    }
+  }
+
+  // return final mapped entrypoints
+  return entrypoints
 }
 
 /**
