@@ -1,4 +1,4 @@
-import { basename, join, relative, resolve } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { existsSync } from 'node:fs'
 import { globSync } from 'glob'
 import { makeLogger, plural } from '@davestewart/wxt-utils'
@@ -7,13 +7,13 @@ import 'wxt'
 import type { EntrypointInfo, WxtResolvedUnimportOptions } from 'wxt'
 import { defineWxtModule } from 'wxt/modules'
 import {
-  getLayerAutoImportDirs,
-  loadLayerConfig,
+  resolveLayerAutoImportDirs,
   resolveEntrypoints,
   resolveLayers,
+  resolveSources,
   scanLayerEntrypoints,
 } from './filesystem'
-import { LayerConfig, LayersModuleOptions } from './types'
+import { LayerOptions, LayersModuleOptions, SourceOptions } from './types'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // types
@@ -42,7 +42,7 @@ declare module 'wxt' {
 /**
  * Define a layer configuration
  */
-export function defineLayer (config: LayerConfig): LayerConfig {
+export function defineLayer (config: LayerOptions): LayerOptions {
   return config
 }
 
@@ -76,23 +76,18 @@ export const module = defineWxtModule({
      * @param path    The absolute path to the layer or layers folder
      * @param alias   Specific alias config (false to skip, true to use default, string to use custom)
      */
-    function setAlias (path: string, alias?: string | boolean | undefined) {
-      // folder alias
-      let folderAlias = alias ?? options.layerAlias
-
-      // skip aliasing if defaults or layer config set to false
-      if (folderAlias === false) {
+    function setAlias (path: string, alias?: string | undefined) {
+      if (!alias) {
         return
       }
 
-      // at this point, alias will be string or true
-      if (folderAlias === true || folderAlias === undefined) {
-        folderAlias = '#{name}'
-      }
-
-      // at this point, alias will be a template or layer-specific name
-      const key = interpolateLayerName(folderAlias, basename(path))
+      // variable
+      const key = interpolateLayerName(alias, basename(path))
       wxt.config.alias ??= {}
+      if (wxt.config.alias[key]) {
+        Logger.debug(`  - alias: ${pc.redBright(key)} is already defined! (skipping)`)
+        return
+      }
       wxt.config.alias[key] = path
 
       // debug
@@ -104,36 +99,42 @@ export const module = defineWxtModule({
     // -----------------------------------------------------------------------------------------------------------------
 
     // start scanning for layers
-    Logger.debug('Resolving layers...')
+    Logger.debug('Resolving sources...')
 
-    // default sources
-    const layerSources = options.sources
-      ? options.sources
-      : `${resolve(rootDir, 'layers/*')}`
-
-    // logged sources
-    if (Array.isArray(options.sources) && Array.isArray(layerSources) && layerSources.length > 0) {
-      layerSources.forEach(source => {
-        Logger.debug(`  - ${source}`)
-      })
+    // layer sources
+    const layerSources: SourceOptions[] = resolveSources(rootDir, options.sources)
+    if (layerSources.length === 0) {
+      Logger.warn(pc.redBright('No layer sources defined!'))
+      return
     }
 
-    // resolve all layer source paths
-    const layerPaths = resolveLayers(layerSources)
-    if (layerPaths.length === 0) {
+    // log sources
+    layerSources.forEach(source => {
+      // debug
+      Logger.debug(`  - ${relative(rootDir, source.source)}`)
+
+      // source alias
+      if (source?.sourceAlias && source?.sourceAlias) {
+        setAlias(source.source.replace('/*', ''), source.sourceAlias)
+      }
+    })
+
+    // resolve all layers with cascaded options
+    const resolvedLayers = await resolveLayers(layerSources, options)
+    if (resolvedLayers.length === 0) {
       Logger.warn(pc.redBright('No layers found!'))
       return
     }
 
     // resolved
-    Logger.info(`Scanning ${plural('layer folder', layerPaths)}...`)
-    layerPaths.forEach(path => {
+    Logger.info(`Scanning ${plural('layer folder', resolvedLayers)}...`)
+    resolvedLayers.forEach(({ path }) => {
       Logger.debug(`  - ${relative(rootDir, path)}`)
     })
 
     // register layer paths for future modules
     wxt.hook('ready', () => {
-      void wxt.hooks.callHook('layers:resolved', layerPaths)
+      wxt.hooks.callHook('layers:resolved', resolvedLayers.map(l => l.path))
     })
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -152,28 +153,26 @@ export const module = defineWxtModule({
     const allEntrypoints: LayerEntrypointInfo[] = []
 
     // loop over layers
-    for (const layerPath of layerPaths) {
+    for (const { path: layerPath, options: layerOptions } of resolvedLayers) {
       // variables
       const layerName = basename(layerPath)
       const layerRelPath = relative(rootDir, layerPath)
 
       Logger.debug(`Processing layer: ${pc.blue(layerRelPath)}`)
 
-      const layerConfig = await loadLayerConfig(layerPath)
-
       // ---------------------------------------------------------------------------------------------------------------
       // layer alias (added immediately)
       // ---------------------------------------------------------------------------------------------------------------
 
-      setAlias(layerPath, layerConfig?.layerAlias)
+      setAlias(layerPath, layerOptions.layerAlias)
 
       // ---------------------------------------------------------------------------------------------------------------
       // entrypoints (added on hook)
       // ---------------------------------------------------------------------------------------------------------------
 
-      // get entrypoints
-      const layerEntrypoints = layerConfig?.entrypoints
-        ? resolveEntrypoints(layerConfig.entrypoints, layerPath)
+      // get entrypoints (already resolved in options)
+      const layerEntrypoints = layerOptions.entrypoints
+        ? resolveEntrypoints(layerOptions.entrypoints, layerPath)
         : scanLayerEntrypoints(layerPath)
 
       // process entrypoints
@@ -189,7 +188,7 @@ export const module = defineWxtModule({
         allEntrypoints.push({
           layerName,
           entrypointName: entrypoint.name,
-          order: layerConfig?.order ?? 100,
+          order: layerOptions.order ?? 100,
           info: entrypoint,
         })
       }
@@ -198,33 +197,8 @@ export const module = defineWxtModule({
       // auto-imports (collated for later addition on hook)
       // ---------------------------------------------------------------------------------------------------------------
 
-      // default dirs
-      const defaultAutoImportDirs = [
-        'components',
-        'composables',
-        'hooks',
-        'services',
-        'stores',
-        'utils',
-      ]
-
-      // option: no folders added to the global auto-import array
-      const optAutoImport = layerConfig?.autoImports
-        ?? options.autoImports
-        ?? false
-      const optLayerAutoImports = Array.isArray(layerConfig?.autoImports)
-        ? layerConfig!.autoImports
-        : []
-
-      // get candidate directories
-      const candidateAutoImportDirs = Array.isArray(optAutoImport)
-        ? [...optAutoImport, ...optLayerAutoImports]
-        : optAutoImport === true
-          ? defaultAutoImportDirs
-          : optLayerAutoImports
-
       // collect auto-import directories
-      const autoImportPaths = getLayerAutoImportDirs(layerPath, candidateAutoImportDirs)
+      const autoImportPaths = resolveLayerAutoImportDirs(layerPath, layerOptions.autoImports ?? [])
       if (autoImportPaths.length > 0) {
         Logger.debug(`  - auto-imports: ${autoImportPaths.map(d => `${basename(d)}`).join(', ')}`)
         allAutoImportPaths.push(...autoImportPaths)
@@ -234,10 +208,8 @@ export const module = defineWxtModule({
       // public folder (copied on hook)
       // ---------------------------------------------------------------------------------------------------------------
 
-      // option: public files go into a named subfolder
-      const publicPrefix = layerConfig?.publicPrefix
-        ?? options.publicPrefix
-        ?? '{name}'
+      // use pre-resolved public prefix
+      const publicPrefix = interpolateLayerName(layerOptions.publicPrefix ?? '', layerName)
 
       // path to public folder
       const publicPath = join(layerPath, 'public')
@@ -267,10 +239,10 @@ export const module = defineWxtModule({
       // update manifest properties (on hook)
       // ---------------------------------------------------------------------------------------------------------------
 
-      if (layerConfig?.manifest) {
+      if (layerOptions.manifest) {
         wxt.hook('build:manifestGenerated', (wxt, manifest) => {
-          if (layerConfig.manifest) {
-            layerConfig.manifest(wxt, manifest)
+          if (layerOptions.manifest) {
+            layerOptions.manifest(wxt, manifest)
           }
         })
       }
@@ -303,7 +275,7 @@ export const module = defineWxtModule({
           if (id === MODULE_ID) {
             // variables
             let imports = ''
-            let handlers = []
+            const handlers = []
 
             // prepare imports and handler calls
             for (const entrypoint of entrypoints) {
@@ -393,7 +365,7 @@ export const module = defineWxtModule({
       // check for existing background
       const existingBackground = entrypointInfos.find(e => e.type === 'background')
       if (existingBackground && layerBackgrounds.length > 0) {
-        Logger.info(pc.yellowBright(`⚠️ Main background entrypoint found at:`))
+        Logger.info(pc.yellowBright('⚠️ Main background entrypoint found at:'))
         Logger.info(pc.yellowBright(`     - ${relative(wxt.config.root, existingBackground.inputPath)}`))
         Logger.info(pc.yellow(`   Make sure to initialize ${plural('layer background', layerBackgrounds)} manually:`))
         layerBackgrounds.forEach(info => {
@@ -426,11 +398,9 @@ export const module = defineWxtModule({
           config.plugins.push(createLayerBackgroundsPlugin(entrypoints))
         })
       }
-
     })
 
     wxt.hook('config:resolved', async () => {
-
       // ---------------------------------------------------------------------------------------------------------------
       // add layer auto-imports
       // ---------------------------------------------------------------------------------------------------------------

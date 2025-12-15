@@ -3,18 +3,38 @@ import { basename, extname, join, resolve } from 'node:path'
 import { type EntrypointInfo } from 'wxt'
 import { loadConfig } from 'c12'
 import { toArray } from '@davestewart/wxt-utils'
-import type { LayerConfig, LayerEntrypoints } from './types'
+import { LayerEntrypoints, LayerOptions, LayersModuleOptions, SourceOptions } from './types'
+
+export function resolveSources (rootDir: string, sources: undefined | string | Array<SourceOptions | string>): SourceOptions[] {
+  return toArray(sources ?? 'layers/*')
+    .map(input => typeof input === 'string' ? { source: input } : input)
+    .map(input => {
+      const { source, sourceAlias } = input
+      const path = resolve(rootDir, source)
+      return {
+        ...input,
+        sourceAlias: sourceAlias ?? '#{name}',
+        source: path,
+      }
+    })
+}
 
 /**
- * Resolve all layers from given sources (rel, abs and child/* paths)
+ * Resolve all layers from given sources with cascaded options
  */
-export function resolveLayers (layersSources: string | string[]): string[] {
+export async function resolveLayers (layersSources: SourceOptions[], moduleOptions: LayersModuleOptions): Promise<Array<{
+  path: string,
+  options: LayerOptions
+}>> {
   // output array
-  const resolvedLayers: string[] = []
+  const resolvedLayers: Array<{ path: string, options: LayerOptions }> = []
 
   // expand paths
-  for (const source of toArray(layersSources)) {
-    const absSource = resolve(source)
+  for (const sourceConfig of toArray(layersSources)) {
+    const absSource = resolve(sourceConfig.source)
+
+    // collect layer paths
+    const layerPaths: string[] = []
 
     // wildcard
     if (absSource.endsWith('/*')) {
@@ -23,13 +43,50 @@ export function resolveLayers (layersSources: string | string[]): string[] {
         const absLayers = readdirSync(absDir)
           .map(name => join(absDir, name))
           .filter(absPath => statSync(absPath).isDirectory())
-        resolvedLayers.push(...absLayers)
+        layerPaths.push(...absLayers)
       }
     }
-
-    // normal layer
     else if (existsSync(absSource)) {
-      resolvedLayers.push(absSource)
+      layerPaths.push(absSource)
+    }
+
+    // load and resolve options for each layer
+    for (const layerPath of layerPaths) {
+      const layerConfig = await loadLayerConfig(layerPath)
+
+      // cascade options: layer > source > module (with defaults)
+      const layerAlias = layerConfig?.layerAlias
+        ?? sourceConfig?.layerAlias
+        ?? moduleOptions.layerAlias
+        ?? '#{name}'
+      const publicPrefix = layerConfig?.publicPrefix
+        ?? sourceConfig?.publicPrefix
+        ?? moduleOptions.publicPrefix
+        ?? '{name}'
+      const autoImports = layerConfig?.autoImports
+        ?? sourceConfig?.autoImports
+        ?? moduleOptions.autoImports
+        ?? []
+      const entrypoints = layerConfig?.entrypoints
+        ?? sourceConfig?.entrypoints
+        ?? moduleOptions.entrypoints
+        ?? undefined
+
+      // layer-only options
+      const order = layerConfig?.order ?? 50
+      const manifest = layerConfig?.manifest
+
+      resolvedLayers.push({
+        path: layerPath,
+        options: {
+          layerAlias,
+          publicPrefix,
+          autoImports,
+          entrypoints,
+          order,
+          manifest,
+        },
+      })
     }
   }
 
@@ -40,7 +97,7 @@ export function resolveLayers (layersSources: string | string[]): string[] {
 /**
  * Load layer config file if it exists
  */
-export async function loadLayerConfig (layerPath: string): Promise<LayerConfig | null> { // | typeof defineLayer
+export async function loadLayerConfig (layerPath: string): Promise<LayerOptions | null> { // | typeof defineLayer
   try {
     const { config } = await loadConfig({
       name: 'layer-config',
@@ -120,18 +177,15 @@ export function resolveEntrypoints (config: LayerEntrypoints, layerPath: string)
   const entrypoints: EntrypointInfo[] = []
 
   // loop over config object
-  for (const [name, path] of Object.entries(config)) {
+  for (const [key, path] of Object.entries(config)) {
     if (path) {
-      const fullPath = resolve(layerPath, path)
-      if (existsSync(fullPath)) {
-        // naming is the opposite way to WXT file defaults; we store the name as <type>.<name>
-        const layerName = name.includes('.')
-          ? name.split('.').shift() as string
-          : name
-        const type = determineEntrypointType(layerName, extname(fullPath))
+      const inputPath = resolve(layerPath, path)
+      if (existsSync(inputPath)) {
+        const [name] = key.split('.') as [string, string | undefined]
+        const type = determineEntrypointType(key, extname(inputPath))
         entrypoints.push({
+          inputPath,
           name,
-          inputPath: fullPath,
           type,
         })
       }
@@ -176,7 +230,7 @@ function determineEntrypointType (name: string, ext: string) {
 /**
  * Get auto-import directories from a layer
  */
-export function getLayerAutoImportDirs (layerPath: string, dirs: string[] = []): string[] {
+export function resolveLayerAutoImportDirs (layerPath: string, dirs: string[] = []): string[] {
   const existingDirs: string[] = []
   for (const dir of dirs) {
     const dirPath = join(layerPath, dir)
