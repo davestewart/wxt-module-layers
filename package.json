@@ -1,6 +1,6 @@
 {
   "name": "wxt-module-layers",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Nuxt-like layers functionality for WXT browser extensions",
   "author": "Dave Stewart",
   "license": "MIT",
@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/davestewart/wxt-module-layers"
+    "url": "git+https://github.com/davestewart/wxt-module-layers.git"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -32,6 +32,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
@@ -42,6 +44,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.26",
+    "eslint": "^9.39.2",
+    "neostandard": "^0.12.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },

@@ -55,22 +55,22 @@ export async function resolveLayers (layersSources: SourceOptions[], moduleOptio
       const layerConfig = await loadLayerConfig(layerPath)
 
       // cascade options: layer > source > module (with defaults)
-      const layerAlias = layerConfig?.layerAlias
-        ?? sourceConfig?.layerAlias
-        ?? moduleOptions.layerAlias
-        ?? '#{name}'
-      const publicPrefix = layerConfig?.publicPrefix
-        ?? sourceConfig?.publicPrefix
-        ?? moduleOptions.publicPrefix
-        ?? '{name}'
-      const autoImports = layerConfig?.autoImports
-        ?? sourceConfig?.autoImports
-        ?? moduleOptions.autoImports
-        ?? []
-      const entrypoints = layerConfig?.entrypoints
-        ?? sourceConfig?.entrypoints
-        ?? moduleOptions.entrypoints
-        ?? undefined
+      const layerAlias = layerConfig?.layerAlias ??
+        sourceConfig?.layerAlias ??
+        moduleOptions.layerAlias ??
+        '#{name}'
+      const publicPrefix = layerConfig?.publicPrefix ??
+        sourceConfig?.publicPrefix ??
+        moduleOptions.publicPrefix ??
+        '{name}'
+      const autoImports = layerConfig?.autoImports ??
+        sourceConfig?.autoImports ??
+        moduleOptions.autoImports ??
+        []
+      const entrypoints = layerConfig?.entrypoints ??
+        sourceConfig?.entrypoints ??
+        moduleOptions.entrypoints ??
+        undefined
 
       // layer-only options
       const order = layerConfig?.order ?? 50
