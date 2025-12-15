@@ -9,18 +9,8 @@ import type { Browser } from 'wxt/browser'
  * > e.g. `content.<name>` instead of `<name>.content`
  */
 type EntrypointName =
-  // script will be inserted into the service worker
+  // virtual background layer
   | 'background'
-
-  // one or more of (pass <type> or <type>.<name>)
-  | 'content'
-  | `content.${string}`
-  | 'sandbox'
-  | `sandbox.${string}`
-  | 'sidepanel'
-  | `sidepanel.${string}`
-  | 'unlisted'
-  | `unlisted.${string}`
 
   // one of
   | 'bookmarks'
@@ -30,6 +20,16 @@ type EntrypointName =
   | 'options'
   | 'popup'
 
+  // one or more of (pass <type> or <name>.<type>)
+  | 'content'
+  | `${string}.content`
+  | 'sandbox'
+  | `${string}.sandbox`
+  | 'sidepanel'
+  | `${string}.sidepanel`
+
+  // string pattern to allow unlisted page, script or style names
+  | `${string}`
 /**
  * Mapping of entrypoint names to their source paths
  */
@@ -51,32 +51,32 @@ export type LayerEntrypoints = Partial<Record<EntrypointName, string>>
  */
 export interface LayersCommonOptions {
   /**
-   * Whether to register layer alias (default: `true`, aliased as `#<layer-name>`)
+   * Whether to register layer alias (default: `#{name}`, aliased as `#<layer-name>`)
    *
-   * > _When these values are used in the module options, they set the defaults for all layers_
+   * > _This option configurable at module, source and layer level_
    *
    * @usage
    *
    * Module and layer options:
    *
    * ```ts
-   * false        // no alias(es)
-   * true         // '#<layer-name>', named after layer with '#' prefix
    * '@{name}'    // '@<layer-name>', named after layer with '@' prefix
+   * ''           // empty string, no alias(es)
    * ```
    * Layer-only options:
    *
    * ```ts
    * '@my-layer'  // '@my-layer', custom name with '@' prefix
    * 'my-layer'   // 'my-layer', custom name
+   * ''           // empty string, no alias
    * ```
    */
-  layerAlias?: string | boolean
+  layerAlias?: string
 
   /**
-   * Automatically register layer's auto-import folders (default: `false`, no auto-imports)
+   * Automatically register layer's auto-import folders (default: undefined, no auto-imports)
    *
-   * > _When these values are used in the module options, they set the defaults for all layers_
+   * > _This option configurable at module, source and layer level_
    *
    * Default auto-import folders are:
    *
@@ -84,7 +84,6 @@ export interface LayersCommonOptions {
    * <layer>/components/*
    * <layer>/composables/*
    * <layer>/hooks/*
-   * <layer>/stores/*
    * <layer>/utils/*
    * ```
    *
@@ -93,20 +92,19 @@ export interface LayersCommonOptions {
    * Auto-import folders to register:
    *
    * ```ts
-   * false                  // no folders
-   * true                   // default folders
+   * []                     // no folders (default)
    * ['composables']        // only 'composables' folder
-   * ['utils', 'classes']   // 'utils' and 'classes' folders
+   * ['utils', 'services']  // 'utils' and 'services' folders
    * ```
    *
-   * Use `autoImportDirs` in `LayerConfig` to add additional directories.
+   * This is configured per-module, per-source and per-layer
    */
-  autoImports?: boolean | string[]
+  autoImports?: string[]
 
   /**
-   * Manually specify entrypoints for the layer (default: none, uses folder scanning)
+   * Manually specify entrypoints for the layer (default: undefined, uses folder scanning)
    *
-   * > _When these values are used in the module options, they set the defaults for all layers_
+   * > _This option configurable at module, source and layer level_
    *
    * @usage
    *
@@ -114,23 +112,23 @@ export interface LayersCommonOptions {
    *
    * ```ts
    * {
-   *   'background':        'background/main.ts',
-   *   'popup':             'popup/popup.html',
-   *   'content':           'content/page.ts',
-   *   'content.linked-in': 'content/linkedin.ts',
-   *   'unlisted.test':     'tests/test.ts',
+   *   'background':        'background/main.ts',   // background.ts
+   *   'popup':             'popup/popup.html',     // popup.html
+   *   'content':           'content/page.ts',      // content-scripts/content.ts
+   *   'linkedin.content':  'content/linkedin.ts',  // content-scripts/linkedin.ts
+   *   'test':              'tests/test.ts',        // test/test.ts
    * }
    * ```
    *
-   * Note that content and unlisted entrypoints must be named uniquely, so may
-   * use `<type>.<name>` format to register multiple entrypoints of the same type.
+   * Note that custom-named entrypoints MUST be named uniquely
+   * so use the format `<name>.<type>` to avoid name clashes.
    */
   entrypoints?: LayerEntrypoints
 
   /**
-   * Public path prefix for layer public assets, e.g. (default: `{name}`)
+   * Public path prefix for layer public assets, e.g. (default: `{name}`, i.e. '/<layer-name>/')
    *
-   * > _When these values are used in the module options, they set the defaults for all layers_
+   * > _This option configurable at module, source and layer level_
    *
    * @usage
    *
@@ -151,7 +149,7 @@ export interface LayersCommonOptions {
  */
 export interface LayersModuleOptions extends LayersCommonOptions {
   /**
-   * List of layer sources (default: '/layers/*')
+   * List of layer source path globs (default: '/layers/*')
    *
    * Paths must be relative to the project root or absolute path
    *
@@ -162,13 +160,26 @@ export interface LayersModuleOptions extends LayersCommonOptions {
    *   'layers/*',        // all folders under '<root>/layers/'
    *   'src/packages/*',  // all folders under '<root>/src/packages/'
    *   'modules/foo',     // single layer 'foo' under '<root>/modules/'
+   *   { source: 'features/*', ... }, // with options
    * ]
    * ```
    */
-  sources?: string[]
+  sources?: Array<string | SourceOptions>
 
   /**
-   * Log level for the module logger (default: 'info')
+   * Whether to register source alias (default: `#{name}`, i.e. `#<source-name>`)
+   *
+   * @usage
+   *
+   * ```ts
+   * '@{name}'    // '@<source-name>', named after source with '@' prefix
+   * ''           // empty string, no alias(es)
+   * ```
+   */
+  sourceAlias?: string
+
+  /**
+   * Log level for the module logger (default: 'info', set to `debug` for full logging)
    */
   logLevel?: LogLevel
 }
@@ -177,7 +188,7 @@ export interface LayersModuleOptions extends LayersCommonOptions {
  * Options for a specific layer
  *
  */
-export interface LayerConfig extends LayersCommonOptions {
+export interface LayerOptions extends LayersCommonOptions {
   /**
    * The order in which the layer is loaded (default: 50; lower numbers load first)
    */
@@ -187,4 +198,21 @@ export interface LayerConfig extends LayersCommonOptions {
    * Callback to modify the extension manifest
    */
   manifest?: (wxt: Wxt, manifest: Browser.runtime.Manifest) => HookResult;
+}
+
+/**
+ * Options for one or more layers
+ */
+export interface SourceOptions extends LayersCommonOptions {
+  /**
+   * The source path glob, i.e. `src/layers/*`
+   *
+   * Path must be relative to the project root or absolute path
+   */
+  source: string
+
+  /**
+   * Whether to register layer alias (default: `#{source}`)
+   */
+  sourceAlias?: string
 }

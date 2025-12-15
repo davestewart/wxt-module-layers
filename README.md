@@ -544,7 +544,7 @@ export default defineConfig({
     // Default layer alias template (default: '#{name}')
     layerAlias: '@{name}',        // i.e. @analytics, @auth, etc.
 
-    // Default auto-import folders (default: false, no auto-imports)
+    // Default auto-import folders (default: [], no auto-imports)
     autoImports: [
       'composables',
       'utils',
@@ -579,19 +579,19 @@ export default defineConfig({
   layers: {
     sources: [
       // configure path only
-      'packages/*'
+      'packages/*',
       
       // configure options for all layers in source
       {
         source: 'packages/*',           // all folders under features
         sourceAlias: '@packages',       // add an alias to the source folder
-        layerAlias: false,              // don't add layer aliases
+        layerAlias: '',                 // don't add layer aliases
         entrypoints: {
           background: 'bg.ts'           // add custom background endpoint location
         }
       }
     ],
-  }
+  },
 })
 ```
 
