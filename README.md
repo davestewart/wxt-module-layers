@@ -692,16 +692,22 @@ export default defineConfig({
 })
 ```
 
-Output shows what's discovered:
+Terminal output shows what's discovered:
 
 ```
-[layers] Scanning 2 layer folders...
-[layers] Processing layer: layers/analytics
-[layers]   - alias: #analytics
-[layers]   - entrypoint: content.ts (content)
-[layers]   - auto-imports: composables, services
+[layers] [source]: layers/*
+[layers]   - alias: #layers
+[layers]   [layer]: layers/complex
+[layers]     - alias: #complex
+[layers]     - entrypoint: entrypoints/background.ts (layer-background)
+[layers]     - auto-imports: composables, services
 ...
 ```
+
+Layer background scripts will:
+
+- wrap their layers' `console.log()`s in named groups
+- output execution times
 
 ### Common Issues
 

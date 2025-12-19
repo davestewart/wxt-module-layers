@@ -3,7 +3,7 @@ import { basename, extname, join, resolve } from 'node:path'
 import { type EntrypointInfo } from 'wxt'
 import { loadConfig } from 'c12'
 import { toArray } from '@davestewart/wxt-utils'
-import { LayerEntrypoints, LayerOptions, LayersModuleOptions, SourceOptions } from './types'
+import { LayerEntrypoints, LayerOptions, SourceOptions } from './types'
 
 export function resolveSources (rootDir: string, sources: undefined | string | Array<SourceOptions | string>): SourceOptions[] {
   return toArray(sources ?? 'layers/*')
@@ -20,78 +20,27 @@ export function resolveSources (rootDir: string, sources: undefined | string | A
 }
 
 /**
- * Resolve all layers from given sources with cascaded options
+ * Get layer paths from a source configuration
  */
-export async function resolveLayers (layersSources: SourceOptions[], moduleOptions: LayersModuleOptions): Promise<Array<{
-  path: string,
-  options: LayerOptions
-}>> {
-  // output array
-  const resolvedLayers: Array<{ path: string, options: LayerOptions }> = []
+export function getLayerPaths (sourceConfig: SourceOptions): string[] {
+  const absSource = resolve(sourceConfig.source)
+  const layerPaths: string[] = []
 
-  // expand paths
-  for (const sourceConfig of toArray(layersSources)) {
-    const absSource = resolve(sourceConfig.source)
-
-    // collect layer paths
-    const layerPaths: string[] = []
-
-    // wildcard
-    if (absSource.endsWith('/*')) {
-      const absDir = absSource.slice(0, -2)
-      if (existsSync(absDir)) {
-        const absLayers = readdirSync(absDir)
-          .map(name => join(absDir, name))
-          .filter(absPath => statSync(absPath).isDirectory())
-        layerPaths.push(...absLayers)
-      }
-    }
-    else if (existsSync(absSource)) {
-      layerPaths.push(absSource)
-    }
-
-    // load and resolve options for each layer
-    for (const layerPath of layerPaths) {
-      const layerConfig = await loadLayerConfig(layerPath)
-
-      // cascade options: layer > source > module (with defaults)
-      const layerAlias = layerConfig?.layerAlias ??
-        sourceConfig?.layerAlias ??
-        moduleOptions.layerAlias ??
-        '#{name}'
-      const publicPrefix = layerConfig?.publicPrefix ??
-        sourceConfig?.publicPrefix ??
-        moduleOptions.publicPrefix ??
-        '{name}'
-      const autoImports = layerConfig?.autoImports ??
-        sourceConfig?.autoImports ??
-        moduleOptions.autoImports ??
-        []
-      const entrypoints = layerConfig?.entrypoints ??
-        sourceConfig?.entrypoints ??
-        moduleOptions.entrypoints ??
-        undefined
-
-      // layer-only options
-      const order = layerConfig?.order ?? 50
-      const manifest = layerConfig?.manifest
-
-      resolvedLayers.push({
-        path: layerPath,
-        options: {
-          layerAlias,
-          publicPrefix,
-          autoImports,
-          entrypoints,
-          order,
-          manifest,
-        },
-      })
+  // wildcard
+  if (absSource.endsWith('/*')) {
+    const absDir = absSource.slice(0, -2)
+    if (existsSync(absDir)) {
+      const absLayers = readdirSync(absDir)
+        .map(name => join(absDir, name))
+        .filter(absPath => statSync(absPath).isDirectory())
+      layerPaths.push(...absLayers)
     }
   }
+  else if (existsSync(absSource)) {
+    layerPaths.push(absSource)
+  }
 
-  // return
-  return resolvedLayers
+  return layerPaths
 }
 
 /**
