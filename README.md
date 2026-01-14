@@ -4,15 +4,32 @@
 
 ## Abstract
 
-**WXT Layers** brings Nuxt's [layers architecture](https://nuxt.com/docs/getting-started/layers) to browser extensions, enabling you to organize your extension into isolated, reusable slices.
+**WXT Layers** brings Nuxt's [layers architecture](https://nuxt.com/docs/getting-started/layers) to browser extensions, enabling you to organise your extension into isolated, reusable slices:
 
-Layers are self-contained folders that mirror WXT's project structure. Each layer can have its own entry points, auto-imports, assets, and manifest modifications, with some additional layer-specific ✨ sprinkled on top.
+```
+src/                     # core logic
+  composables/
+  entrypoints/
+  public/
+  utils/
+layers/
+  some-feature/          # related files
+    entrypoints/
+    public/
+  some-service/          # related files
+    composables/
+    index.ts
+```
+
+Layers are self-contained folders that mirror WXT's project structure. Each layer can have its own [entry points](#entrypoints), [auto-imports](#imports-and-exports), [public files](#public-files-and-assets), and [manifest modifications](#layer-options), with some additional layer-specific ✨ sprinkled on top.
 
 Main use cases:
 
 - **Large projects**: a flexible level of abstraction once your project gets large
 - **Cleaner organisation**: use core WXT structure for shared code, layers for specific features
 - **Feature isolation**: keep related code together (e.g., `layers/analytics/`, `layers/auth/`)
+
+Jump to the [usage](#usage) section for full details.
 
 ## Contents
 
@@ -57,9 +74,11 @@ export default defineConfig({
 })
 ```
 
-### Layer Files
+### Quick start
 
-Add some files to get started:
+WXT Layers has sensible defaults to get started quickly. It looks for sub-folders under `<root>/layers/` and expects each folder to mirror the structure of a regular WXT extension.
+
+Let's add some files to get started:
 
 ```yaml
 layers/                 # default source (note: you can configure multiple sources)
@@ -73,6 +92,8 @@ Right click your extension's icon, click "Options", and view the options page �
 > [!TIP]
 > Your extension will rebuild as you add or update new files or configuration options during development. If you're feeling adventurous, try moving your popup entrypoint and related code and see what happens!
 
+You can stop here if you're happy with the defaults, otherwise, read on to deep dive [usage](#usage), [patterns](#patterns) and [options](#options).
+
 ## Usage
 
 The main areas of interest in a Layers project are:
@@ -85,7 +106,7 @@ The main areas of interest in a Layers project are:
   Aliases, auto-imports, and index files
 - [Public files and assets](#public-files-and-assets)<br>
   Layer-specific public files and assets
-- [Options](#options)<br>
+- [Options](#options) (separate section)<br>
   Module, source and layer-level configuration
 
 ### Folder Structure
@@ -123,7 +144,7 @@ There are several ways to configure and utilise entry points in layers:
 
 #### Entrypoints Folders
 
-File-based [entry points](https://wxt.dev/guide/essentials/entrypoints.html#entrypoint-types) are discovered in exactly the same way as a regular WXT project:
+File-based [entrypoints](https://wxt.dev/guide/essentials/entrypoints.html#entrypoint-types) are discovered in exactly the same way as a regular WXT project:
 
 ```yaml
 layers/my-layer/
@@ -151,7 +172,7 @@ layers/some-feature/
     index.html          # non-standard location
 ```
 
-To do this, configure using an [entrypoints](#entry-point-options) object in your layer config:
+To do this, configure using an [entrypoints](#entrypoints-options) object in your layer config:
 
 ```ts
 // layers/some-feature/layer.config.ts
@@ -317,6 +338,12 @@ import '../assets/styles.scss'
 
 ## Patterns
 
+This section contains best-practice information regarding:
+
+- [Sources](#sources)
+- [Import Strategies](#import-strategies)
+- [Extensibility](#extensibility)
+
 ### Sources
 
 Set up multiple [sources](#module-options) for different purposes:
@@ -393,7 +420,7 @@ layers/
     index.ts            # optional barrel file export
 ```
 
-Import between layers using aliases (if [auto-imports](#auto-imports) are off):
+Import between layers using [aliases](#layer-aliases) (if [auto-imports](#auto-imports) are off):
 
 ```ts
 // src/entrypoints/content.ts
@@ -405,18 +432,22 @@ import { useAuth } from '#auth'
 Create reusable layers for common functionality across projects:
 
 ```yaml
-layers/
+packages/
   error-reporting/      # Reusable Sentry integration
   feature-flags/        # Reusable feature flag system
   telemetry/            # Reusable analytics
 ```
 
-Note that reusable layers can be installed from any relative or absolute path:
+Note that layers can be installed from any relative or absolute path:
 
 ```ts
 {
   sources: [
-    'src/layers',
+    // multiple layers
+    'src/layers/*',
+    'packages/*',
+    
+    // single layers
     '~/Projects/.../some-package',
     '/Volumes/Projects/.../some-package',
     'node_modules/some-package/',
@@ -498,6 +529,18 @@ Import from the same layer:
 import { TrackerService } from '../services/tracker'
 import type { Event } from '../types'!
 ```
+
+### Extensibility
+
+Other plugins or your own code can be informed when layers are resolved, by hooking into the `'layers:resolved'` event:
+
+```ts
+wxt.hook('layers:resolved' as any, async (layerDirs: string[]) => {
+  // do something with layer dirs
+})
+```
+
+The [WXT Pages](https://github.com/davestewart/wxt-module-pages) module does just this to add file based routes [from individual](https://github.com/davestewart/wxt-module-pages/blob/main/src/module.ts#L163-L165) layers.
 
 ## Options
 
@@ -614,13 +657,13 @@ import { defineLayer } from 'wxt-module-layers'
 
 export default defineLayer({
   // Control background script order (default: 50, lower = earlier)
-  order: 0,                                      // run this script first!
+  order: 0,
 
   // Manually specify entry points (bypasses auto-discovery)
   entrypoints: {
-    'background': 'background/index.ts',        // background.ts
-    'linkedin.content': 'content/linkedin.ts',  // content-scripts/linkedin.ts
-    'twitter.content': 'content/twitter.ts',    // content-scripts/twitter.ts
+    'background': 'background/index.ts',        // --> background.ts
+    'linkedin.content': 'content/linkedin.ts',  // --> content-scripts/linkedin.ts
+    'twitter.content': 'content/twitter.ts',    // --> content-scripts/twitter.ts
   },
 
   // Modify extension manifest
@@ -630,17 +673,19 @@ export default defineLayer({
   },
 
   // Override module defaults (rarely needed)
-  layerAlias: '@tracking',                      // custom layer alias
+  layerAlias: '@tracking',
 
-  autoImports: ['composables', 'services'],     // auto-import these folders
+  // Auto-import specific folders
+  autoImports: ['composables', 'services'],
 
-  publicPrefix: 'tracking',                     // custom public path
+  // Customise public files location
+  publicPrefix: 'tracking',
 })
 ```
 
 Note that layer options fall back to [source](#source-options) and [module](#module-options) options if not set.
 
-### Entry Point Options
+### Entrypoints Options
 
 Manual entry point options should be configured using a `key => path` format.
 
