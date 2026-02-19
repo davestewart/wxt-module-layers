@@ -2,11 +2,13 @@
 
 > Nuxt-like layers functionality for WXT browser extensions
 
+![Splash](splash.png)
+
 ## Abstract
 
 **WXT Layers** brings Nuxt's [layers architecture](https://nuxt.com/docs/getting-started/layers) to browser extensions, enabling you to organise your extension into isolated, reusable slices:
 
-```
+```yaml
 src/                     # core logic
   composables/
   entrypoints/
