@@ -296,6 +296,23 @@ export const module = defineWxtModule({
     const MODULE_NAME = 'wxt-module-layers:background'
     const MODULE_ID = '\0' + MODULE_NAME
 
+    // let TS / ESLint know the virtual module exists in consumer projects
+    wxt.hook('prepare:types', (_, entries) => {
+      entries.push({
+        path: 'types/wxt-module-layers.d.ts',
+        text: [
+          `declare module '${MODULE_NAME}' {`,
+          `  /** Runs all layer background handlers in registration order. */`,
+          `  export function main(): boolean`,
+          `  const layerBackgrounds: { main(): boolean }`,
+          `  export default layerBackgrounds`,
+          `}`,
+          '',
+        ].join('\n'),
+        tsReference: true,
+      })
+    })
+
     /**
      * Create a Vite plugin that provides a virtual module to load layer backgrounds
      *
