@@ -15,7 +15,6 @@ import {
   scanLayerEntrypoints,
 } from './filesystem'
 import { LayerOptions, LayersModuleOptions, SourceOptions } from './types'
-import { readFileSync } from 'fs'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // types
@@ -243,14 +242,21 @@ export const module = defineWxtModule({
           // debug
           Logger.debug(`    - public: ${publicPrefix}/*`)
 
+          // glob once at setup time, so the list is available to both hooks below
+          const publicFiles = globSync('**/*', {
+            cwd: publicPath,
+            nodir: true,
+          })
+
+          // register paths so they appear in `.wxt/types/paths.d.ts`
+          wxt.hook('prepare:publicPaths', (_, paths) => {
+            for (const file of publicFiles) {
+              paths.push(join(publicPrefix, file))
+            }
+          })
+
           // copy public files at build time
           wxt.hook('build:publicAssets', (_, assets) => {
-            // find all files in public directory
-            const publicFiles = globSync('**/*', {
-              cwd: publicPath,
-              nodir: true,
-            })
-
             for (const file of publicFiles) {
               const absoluteSrc = join(publicPath, file)
               const relativeDest = join(publicPrefix, file)
