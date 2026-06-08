@@ -333,14 +333,14 @@ export const module = defineWxtModule({
           if (id === MODULE_ID) {
             // variables
             let imports = ''
-            const handlers = []
+            let handlers = ''
 
             // prepare imports and handler calls
             for (const entrypoint of entrypoints) {
               const label = entrypoint.layerName.replace(/\W+/g, '_')
               const handler = `init_${label}`
               imports += `import ${handler} from '${entrypoint.info.inputPath}';\n`
-              handlers.push(handler)
+              handlers += `${label}: ${handler}.main ?? ${handler},`
             }
 
             // final code
@@ -360,12 +360,14 @@ export const module = defineWxtModule({
               }
               
               async function runAll () {
-                const handlers = [${handlers.join(', ')}];
+                const handlers = {
+                  ${handlers}
+                };
                 let prevResult;
                 PROFILE && console.group('[wxt-layers]');
-                for (const handler of handlers) {
+                for (const name in handlers) {
+                  const handler = handlers[name];
                   const interval = microtime();
-                  const name = handler.name.substring(5);
                   PROFILE && console.group(name + '.background:');
                   const result = handler(prevResult);
                   if (result instanceof Promise) {
