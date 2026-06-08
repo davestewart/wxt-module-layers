@@ -383,12 +383,12 @@ export const module = defineWxtModule({
                 PROFILE && console.groupEnd();
               }
               
-              export default {
-                main () {
-                  void runAll();
-                  return true;
-                }
+              export function main () {
+                void runAll();
+                return true;
               }
+              
+              export default { main };
             `
           }
         },
