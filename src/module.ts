@@ -397,32 +397,11 @@ export const module = defineWxtModule({
         }
       }
 
-      // check for existing background
-      const existingBackground = entrypointInfos.find(e => e.type === 'background')
-      if (existingBackground && layerBackgrounds.length > 0) {
-        Logger.info(pc.yellowBright('⚠️ Main background entrypoint found at:'))
-        Logger.info(pc.yellowBright(`     - ${relative(wxt.config.root, existingBackground.inputPath)}`))
-        Logger.info(pc.yellow(`   Make sure to initialize ${plural('layer background', layerBackgrounds)} manually:`))
-        layerBackgrounds.forEach(info => {
-          Logger.info(pc.yellow(`     - ${relative(wxt.config.root, info.info.inputPath)}`))
-        })
-      }
-
-      // if no background but layer background slices, create a virtual file to run them
-      if (!existingBackground && layerBackgrounds.length > 0) {
-        Logger.info(pc.yellowBright(`Created virtual entrypoint for ${plural('layer background', layerBackgrounds)}`))
-
-        // add the virtual entrypoint
-        entrypointInfos.push({
-          name: 'background',
-          inputPath: MODULE_NAME,
-          type: 'background',
-        })
-
-        // get paths
+      // handle layer backgrounds
+      if (layerBackgrounds.length > 0) {
         const entrypoints = layerBackgrounds.sort((a, b) => a.order - b.order)
 
-        // Register the virtual module plugin
+        // always register the virtual module plugin so the import resolves in both modes
         wxt.hook('vite:devServer:extendConfig', (config: any) => {
           config.plugins = config.plugins || []
           config.plugins.push(createLayerBackgroundsPlugin(entrypoints))
@@ -432,6 +411,24 @@ export const module = defineWxtModule({
           config.plugins = config.plugins || []
           config.plugins.push(createLayerBackgroundsPlugin(entrypoints))
         })
+
+        const existingBackground = entrypointInfos.find(e => e.type === 'background')
+        if (existingBackground) {
+          // manual mode: user imports 'wxt-module-layers:background' themselves
+          Logger.info(pc.yellowBright(`Main background found — use '${MODULE_NAME}' to initialize ${plural('layer background', layerBackgrounds)}:`))
+          layerBackgrounds.forEach(info => {
+            Logger.info(pc.yellow(`     - ${relative(wxt.config.root, info.info.inputPath)}`))
+          })
+        }
+        else {
+          // auto mode: create virtual entrypoint that runs all layer backgrounds
+          Logger.info(pc.yellowBright(`Created virtual entrypoint for ${plural('layer background', layerBackgrounds)}`))
+          entrypointInfos.push({
+            name: 'background',
+            inputPath: MODULE_NAME,
+            type: 'background',
+          })
+        }
       }
     })
 
