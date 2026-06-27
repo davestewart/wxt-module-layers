@@ -194,7 +194,7 @@ export default defineLayer({
 
 Every layer can have its own background script; they are compiled at build time and either:
 
-- **automatically** added to a new background endpoint if no existing `src` background endpoint
+- **automatically** added to a virtual background endpoint if no existing `src` background endpoint
 - **manually** imported and run in your existing `src` background endpoint
 
 Let's say you have two layers which need to add their own listeners, alarms, etc:
@@ -209,28 +209,28 @@ In each layer, define a background entrypoint as you normally would:
 
 ```ts
 // layers/some-feature/entrypoints/background.ts
-export default defineBackground(async () => {
+export default function () {
   // set up listeners, alarms, etc.
-})
+}
 ```
 
 > [!Tip]
 >
 > Create an `async` function if you want layers to complete their work in sequence before the next one runs
 
-If you have an existing `src` background entrypoint, manually import the initializer and run it:
+If you have an existing `src` background entrypoint, manually import the layer bacgrounds initializer and run it:
 
 ```ts
 // src/entrypoints/background.ts
-import layers from 'wxt-module-layers:background'
+import { main } from 'wxt-module-layers:background'
 
-export default async defineBackground(() => {
+export default defineBackground(() => {
   console.log('Main background ready')
-  layers()
+  main()
 })
 ```
 
-If you **don't** have an existing `src` background entrypoint, the module will automatically create and add a new background entrypoint that runs all layer backgrounds in order. No additional coding required!
+If you **don't** have, or don't need, an existing `src` background entrypoint, the module will automatically create and add a new background entrypoint that runs all layer backgrounds in order. No additional coding required!
 
 If you need background scripts to run in a specific order, set the `order` property in [layer config](#layer-config):
 
@@ -326,8 +326,8 @@ By default, public paths are prefixed with the **layer name**; reconfigure this 
 
 ```ts
 {
-  publicPath: '',       // no prefix; ensure layer public files are unique!
-  publicPath: '{name}', // default: prefix with layer name
+  publicPrefix: '',        // no prefix; ensure layer public files are unique!
+  publicPrefix: '{name}/', // default: prefix with layer name
 }
 ```
 
@@ -579,7 +579,7 @@ export default defineConfig({
         layerAlias: ...,
         entrypoints: ...,
         autoImports: ...,
-        publicPath: ...,
+        publicPrefix: ...,
       }
     ],
 
