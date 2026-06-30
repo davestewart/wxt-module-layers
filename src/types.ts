@@ -142,6 +142,21 @@ export interface LayersCommonOptions {
    * ```
    */
   publicPrefix?: string
+
+  /**
+   * Make layer public files web-accessible in the extension manifest (default: `false`)
+   *
+   * > _This option configurable at module, source and layer level_
+   *
+   * @usage
+   *
+   * ```ts
+   * true                             // accessible from all URLs (<all_urls>)
+   * '*://example.com/*'              // accessible from a single match pattern
+   * ['*://a.com/*', '*://b.com/*']   // accessible from multiple match patterns
+   * ```
+   */
+  publicAccess?: boolean | string | string[]
 }
 
 /**

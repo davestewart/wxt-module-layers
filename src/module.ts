@@ -86,6 +86,10 @@ export const module = defineWxtModule({
           sourceConfig?.publicPrefix ??
           moduleOptions.publicPrefix ??
           '{name}',
+        publicAccess: layerConfig?.publicAccess ??
+          sourceConfig?.publicAccess ??
+          moduleOptions.publicAccess ??
+          true,
         autoImports: layerConfig?.autoImports ??
           sourceConfig?.autoImports ??
           moduleOptions.autoImports ??
@@ -263,6 +267,32 @@ export const module = defineWxtModule({
               assets.push({ absoluteSrc, relativeDest })
             }
           })
+
+          // add public files to web accessible resources
+          if (layerOptions.publicAccess) {
+            const matches = layerOptions.publicAccess === true
+              ? ['<all_urls>']
+              : ([] as string[]).concat(layerOptions.publicAccess)
+            const resources = publicFiles.map(file => '/' + join(publicPrefix, file))
+            Logger.debug(`    - web accessible: ${matches.join(', ')}`)
+            wxt.hook('build:manifestGenerated', (_wxt, manifest) => {
+              manifest.web_accessible_resources ??= []
+              const target = manifest.web_accessible_resources?.find(e => {
+                return typeof e !== 'string' && String(e.matches.sort()) === String(matches.sort())
+              })
+              if (target && typeof target !== 'string') {
+                for (const resource of resources) {
+                  if (!target.resources.includes(resource)) {
+                    target.resources.push(resource)
+                  }
+                }
+              }
+              else {
+                // @ts-ignore
+                manifest.web_accessible_resources.push({ matches, resources })
+              }
+            })
+          }
         }
 
         // ---------------------------------------------------------------------------------------------------------------

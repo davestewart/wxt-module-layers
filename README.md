@@ -314,7 +314,9 @@ import { foo, bar } from '#some-feature'
 
 ### Public Files and Assets
 
-Public files from each layer will be copied to the main project's public folder:
+#### Public files
+
+Public files (i.e. those accessed via URL at runtime) from each layer will be copied to the main project's public folder:
 
 ```yaml
 layers/some-feature/
@@ -331,11 +333,23 @@ By default, public paths are prefixed with the **layer name**; reconfigure this 
 }
 ```
 
-Note that layer-specific `assets` should be imported into source code as usual:
+By default, public files are accessible from `<all_urls>`; reconfigure this at the [module](#module-options), [source](#source-options) or [layer](#layer-options) level:
+
+```ts
+{
+  publicAccess: ['*://wxt.dev'], // limit access to one or more domains
+  publicAccess: false,           // prevent access to files
+}
+````
+
+#### Asset files
+
+Asset files (i.e. those bundled by rollup at build time) should be imported into source code:
 
 ```ts
 // layers/some-feature/entrypoints/popup.ts
-import '../assets/styles.scss'
+import '../assets/styles.scss'              // styles will be compiled in the final bundle
+import icon from '../assets/icon.svg?raw'   // assets should be referenced directly in code
 ```
 
 ## Patterns
@@ -548,46 +562,49 @@ The [WXT Pages](https://github.com/davestewart/wxt-module-pages) module does jus
 
 Options are hierarchical, configurable at [module](#module-options) > [source](#source-options) > [layer](#layer-options) levels:
 
-| Name           | [Module](#module-options) | [Source](#source-options) | [Layer](#layer-options) | Description                                         |
-|----------------|:-------------------------:|:-------------------------:|:-----------------------:|-----------------------------------------------------|
-| `logLevel`     |             ✅             |                           |                         | Logger output level                                 |
-| `sources`      |             ✅             |                           |                         | Paths/globs to layer sources                        |
-| `source`       |                           |             ✅             |                         | Path/glob to layer sources                          |
-| `layerAlias`   |             ✅             |             ✅             |            ✅            | Layer alias template or literal string              |
-| `autoImports`  |             ✅             |             ✅             |            ✅            | Auto-import folder paths                            |
-| `entrypoints`  |             ✅             |             ✅             |            ✅            | Manual entry point configuration                    |
-| `publicPrefix` |             ✅             |             ✅             |            ✅            | Layer public path template or literal string prefix |
-| `order`        |                           |                           |            ✅            | Background script load order                        |
-| `manifest`     |                           |                           |            ✅            | Manifest access                                     |
+| Name           | [Module](#module-options) | [Source](#source-options) | [Layer](#layer-options) | Description                       |
+|----------------|:-------------------------:|:-------------------------:|:-----------------------:|-----------------------------------|
+| `logLevel`     |             ✅             |                           |                         | Logger output level               |
+| `sources`      |             ✅             |                           |                         | Paths/globs to layer sources      |
+| `source`       |                           |             ✅             |                         | Path/glob to layer sources        |
+| `layerAlias`   |             ✅             |             ✅             |            ✅            | Layer alias configuration         |
+| `autoImports`  |             ✅             |             ✅             |            ✅            | Auto-import folder paths          |
+| `entrypoints`  |             ✅             |             ✅             |            ✅            | Manual entry point configuration  |
+| `publicPrefix` |             ✅             |             ✅             |            ✅            | Copied public files location      |
+| `publicAccess` |             ✅             |             ✅             |            ✅            | Copied public files accessibility |
+| `order`        |                           |                           |            ✅            | Background script execution order |
+| `manifest`     |                           |                           |            ✅            | Raw manifest modification         |
 
 ### Module Options
 
 Module options are configured in `wxt.config.ts` under the `layers` key:
 
 ```ts
+// Ktchen sink example of all configuration options (not representative of a typical project) 
 export default defineConfig({
   modules: ['wxt-module-layers'],
   layers: {
     // Where to find layers (default: 'layers/*')
     sources: [
-      'layers/*',                 // All folders under /layers/
-      'src/packages/*',           // All folders under /src/packages/
-      'vendor/analytics',         // Single specific layer
+      'layers/*',                   // All folders under /layers/
+      'src/packages/*',             // All folders under /src/packages/
+      'vendor/analytics',           // Single specific layer
       {
-        source: 'features/*',     // Options per source (see Source Options below)
+        source: 'features/*',       // Options per source (see Source Options below)
         sourceAlias: ...,
         layerAlias: ...,
         entrypoints: ...,
         autoImports: ...,
         publicPrefix: ...,
+        publicAccess: ...,
       }
     ],
 
     // Default source alias template (default: '#{name}')
-    sourceAlias: '@{name}',       // i.e. @features, @packages, etc.
+    sourceAlias: '@{name}',         // i.e. @features, @packages, etc.
 
     // Default layer alias template (default: '#{name}')
-    layerAlias: '@{name}',        // i.e. @analytics, @auth, etc.
+    layerAlias: '@{name}',          // i.e. @analytics, @auth, etc.
 
     // Default auto-import folders (default: [], no auto-imports)
     autoImports: [
@@ -598,15 +615,18 @@ export default defineConfig({
 
     // Default manual entrypoint files (default: null, scans entrypoint folders)
     entrypoints: {
-      background: 'bg.ts',        // add custom background endpoint location
+      background: 'bg.ts',          // add custom background endpoint location
       ...
-    }
+    },
 
     // Default public file prefix (default: '{name}', copy into subfolder)
-    publicPrefix: '/',            // Copied to '/' rather than '/auth/'
+    publicPrefix: '/',              // Copied to '/' rather than '/auth/'
+
+    // Default public file accessibility (default: false, nothing added to `web_accessible_resources`)
+    publicAccess: '*://wxt.dev',    // make all files in `public` folders accessible on wxt.dev
 
     // Logging level (default: 'info')
-    logLevel: 'debug',            // Exposes useful debugging information
+    logLevel: 'debug',              // Exposes useful debugging information
   }
 })
 ```
@@ -631,10 +651,13 @@ export default defineConfig({
         source: 'packages/*',           // all folders under features
         sourceAlias: '@packages',       // add an alias to the source folder
         layerAlias: '',                 // don't add layer aliases
+        autoImports: ['utils'],         // auto-import everything from utils folder
         entrypoints: {
           background: 'bg.ts'           // add custom background endpoint location
-        }
-      }
+        },
+        publicPrefix: '/',              // place all public files in root
+        publicAccess: '*://wxt.dev',    // make public files only accessible from wxt.dev
+      },
     ],
   },
 })
@@ -651,7 +674,8 @@ Most layers work just-fine with defaults. Configure when you need to:
 - modify the extension **manifest**
 - modify **aliases** (not-recommended at layer level for consistency)
 - modify **auto-imports**
-- modify `public` path prefix
+- modify `public` files location
+- modify `public` files access
 
 ```ts
 // layers/analytics/layer.config.ts
@@ -682,6 +706,9 @@ export default defineLayer({
 
   // Customise public files location
   publicPrefix: 'tracking',
+
+  // Customise public files access
+  publicAccess: false,
 })
 ```
 
