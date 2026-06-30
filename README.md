@@ -33,6 +33,17 @@ Main use cases:
 
 Jump to the [usage](#usage) section for full details.
 
+## Demo
+
+![Demo](demo.png)
+
+Check the [demo](./demo) folder for a working Hacker News enhancement extension — **HN Enhanced** — that shows WXT Layers in action with two isolated feature layers:
+
+- **Theme** — replaces the favicon, highlights high-scoring stories, opens links in new tabs
+- **Tracker** — marks read stories with a checkmark and orange highlight, logs your reading history to a sidepanel
+
+It's a practical reference for layer discovery, per-layer background scripts, auto-imports, barrel file exports, public file copying, CSS assets, and manifest merging — all in one runnable project.
+
 ## Contents
 
 Quickly jump to:

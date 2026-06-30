@@ -11,11 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Demo
 
-### Changed
-
-- Add splash image
-- Update documentation
-
 ## [1.3.0] - 2026-06-30
 
 ### Added
