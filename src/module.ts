@@ -277,8 +277,8 @@ export const module = defineWxtModule({
             Logger.debug(`    - web accessible: ${matches.join(', ')}`)
             wxt.hook('build:manifestGenerated', (_wxt, manifest) => {
               manifest.web_accessible_resources ??= []
-              const target = manifest.web_accessible_resources?.find(e => {
-                return typeof e !== 'string' && String(e.matches.sort()) === String(matches.sort())
+              const target = manifest.web_accessible_resources?.find(entry => {
+                return typeof entry !== 'string' && String(entry.matches?.sort()) === String(matches.sort())
               })
               if (target && typeof target !== 'string') {
                 for (const resource of resources) {
