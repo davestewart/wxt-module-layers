@@ -36,7 +36,7 @@
     "dev": "tsup --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@davestewart/wxt-utils": "^0.6.0",
@@ -53,6 +53,5 @@
   },
   "peerDependencies": {
     "wxt": ">=0.17.0"
-  },
-  "packageManager": "pnpm@10.26.1"
+  }
 }

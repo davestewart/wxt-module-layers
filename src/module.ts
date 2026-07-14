@@ -89,7 +89,7 @@ export const module = defineWxtModule({
         publicAccess: layerConfig?.publicAccess ??
           sourceConfig?.publicAccess ??
           moduleOptions.publicAccess ??
-          true,
+          false,
         autoImports: layerConfig?.autoImports ??
           sourceConfig?.autoImports ??
           moduleOptions.autoImports ??

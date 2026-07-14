@@ -344,14 +344,14 @@ By default, public paths are prefixed with the **layer name**; reconfigure this 
 }
 ```
 
-By default, public files are accessible from `<all_urls>`; reconfigure this at the [module](#module-options), [source](#source-options) or [layer](#layer-options) level:
+By default, public files are not web-accessible; reconfigure this at the [module](#module-options), [source](#source-options) or [layer](#layer-options) level:
 
 ```ts
 {
   publicAccess: ['*://wxt.dev'], // limit access to one or more domains
   publicAccess: false,           // prevent access to files
 }
-````
+```
 
 #### Asset files
 
@@ -554,7 +554,7 @@ Import from the same layer:
 ```ts
 // Within layers/analytics/
 import { TrackerService } from '../services/tracker'
-import type { Event } from '../types'!
+import type { Event } from '../types'
 ```
 
 ### Extensibility
@@ -591,7 +591,7 @@ Options are hierarchical, configurable at [module](#module-options) > [source](#
 Module options are configured in `wxt.config.ts` under the `layers` key:
 
 ```ts
-// Ktchen sink example of all configuration options (not representative of a typical project) 
+// Kitchen sink example of all configuration options (not representative of a typical project) 
 export default defineConfig({
   modules: ['wxt-module-layers'],
   layers: {
@@ -799,7 +799,7 @@ Layer background scripts will:
 **Aliases not resolving**:
 
 - Restart TypeScript server
-- Verify `layerAlias` isn't `false`at [module](#module-options), [source](#source-options) or [layer](#layer-options) level
+- Verify `layerAlias` isn't `false` at [module](#module-options), [source](#source-options) or [layer](#layer-options) level
 
 **Auto-imports not working**:
 

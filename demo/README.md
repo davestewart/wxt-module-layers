@@ -70,8 +70,8 @@ Note: `ext/entrypoints/background.ts` manually calls `main()` from the virtual m
 ## Running
 
 ```bash
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 Once loaded:

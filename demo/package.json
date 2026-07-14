@@ -12,7 +12,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "wxt-module-layers": "link:.."
+    "wxt-module-layers": "file:.."
   },
   "devDependencies": {
     "typescript": "^5.9.2",
