@@ -1,24 +1,25 @@
+# https://www.pkgpulse.com/guides/publishing-npm-package-complete-guide-2026
 name: Publish to npm
 
 on:
-  workflow_dispatch:  # Manual trigger for testing
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write  # Required for provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org/
-
-      - run: pnpm install
-      - run: pnpm build
-
-      - run: npm publish
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

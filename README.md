@@ -229,7 +229,7 @@ export default function () {
 >
 > Create an `async` function if you want layers to complete their work in sequence before the next one runs
 
-If you have an existing `src` background entrypoint, manually import the layer bacgrounds initializer and run it:
+If you have an existing `src` background entrypoint, manually import the layer backgrounds initializer and run it:
 
 ```ts
 // src/entrypoints/background.ts
